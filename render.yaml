@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: stress-api
+    env: python
+    buildCommand: ""
+    startCommand: python stress_api.py
+    plan: free
