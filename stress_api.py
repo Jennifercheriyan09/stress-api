@@ -19,7 +19,6 @@ def predict():
             data['azm'],
             data['resting_hr'],
             data['hrv'],
-            data['br'],
             data['sleep_minutes'],
             data['sleep_efficiency']
         ]
