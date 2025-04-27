@@ -77,8 +77,7 @@ def chat():
 @app.route('/ai_predict', methods=['POST'])
 def ai_predict():
     try:
-        data = request.json
-
+        data = request.get_json()
         features = [
             data['heart_rate'],
             data['steps'],
@@ -90,71 +89,75 @@ def ai_predict():
             data['sleep_efficiency']
         ]
 
-        # Get ML model prediction
+        prediction_proba = model.predict_proba([features])[0]
         prediction = model.predict([features])[0]
-        label_map = {0: "Low", 1: "Moderate", 2: "High"}
-        stress_level = label_map.get(prediction, "Unknown")
-
-        # Ask Gemini to create a detailed analysis
-        prompt = f"""
-        Analyze the following health parameters:
-        Heart Rate: {data['heart_rate']} bpm,
-        Steps: {data['steps']},
-        Calories: {data['calories']} kcal,
-        Active Zone Minutes (AZM): {data['azm']},
-        Resting HR: {data['resting_hr']} bpm,
-        HRV: {data['hrv']} ms,
-        Sleep Minutes: {data['sleep_minutes']} min,
-        Sleep Efficiency: {data['sleep_efficiency']}
-
-        Based on this, give a probability or confidence score for the stress level ({stress_level})
-        and explain why you rated it so. Also, suggest a small action the user can take.
-        """
-
-        model_ai = genai.GenerativeModel(model_name="gemini-1.5-flash")
-        response = model_ai.generate_content(prompt)
+        label_map = {0: "Low", 1: "Medium", 2: "High"}
 
         return jsonify({
-            "stress_level": stress_level,
-            "detailed_insight": response.text  # ✅ Now safely extract text
+            "stress_level": label_map[prediction],
+            "score": float(max(prediction_proba))  # highest probability
         })
 
     except Exception as e:
-        print(f"Error in /ai_predict: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-# --- AI-BASED RECOMMENDATIONS ENDPOINT ---
+# --- RECOMMENDATIONS ENDPOINT ---
 @app.route('/recommendations', methods=['POST'])
 def recommendations():
     try:
-        data = request.json
+        data = request.get_json()
 
-        # Create an intelligent recommendation prompt
-        prompt = f"""
-        Given this data:
-        Heart Rate: {data['heart_rate']} bpm,
-        Steps: {data['steps']},
-        Calories: {data['calories']} kcal,
-        Active Zone Minutes: {data['azm']},
-        Resting Heart Rate: {data['resting_hr']} bpm,
-        HRV: {data['hrv']} ms,
-        Sleep Minutes: {data['sleep_minutes']},
-        Sleep Efficiency: {data['sleep_efficiency']},
+        # Extract features
+        heart_rate = data.get('heart_rate', 70)
+        steps = data.get('steps', 3000)
+        calories = data.get('calories', 1800)
+        azm = data.get('azm', 40)
+        resting_hr = data.get('resting_hr', 70)
+        hrv = data.get('hrv', 30.0)
+        sleep_minutes = data.get('sleep_minutes', 420)
+        sleep_efficiency = data.get('sleep_efficiency', 0.85)
 
-        Analyze if the person shows signs of stress. 
-        Identify one good thing in the data and one warning sign.
-        Then recommend 2-3 specific actions they can do today to reduce stress.
-        """
+        summary = []
+        warnings = ""
+        recommendations = []
 
-        model_ai = genai.GenerativeModel(model_name="gemini-1.5-flash")
-        response = model_ai.generate_content(prompt)
+        # Analyze indicators
+        if hrv < 40:
+            summary.append(f"HRV is low ({hrv} ms) indicating elevated stress.")
+            warnings = "Low HRV is the strongest indicator of stress today."
+        else:
+            summary.append(f"HRV is normal ({hrv} ms), indicating good recovery.")
+
+        if sleep_efficiency < 0.9:
+            summary.append(f"Sleep efficiency is {sleep_efficiency*100:.0f}%, suggesting possible sleep quality issues.")
+        else:
+            summary.append(f"Sleep efficiency is good ({sleep_efficiency*100:.0f}%).")
+
+        if resting_hr > 70:
+            summary.append(f"Resting heart rate is slightly above average ({resting_hr} bpm).")
+        else:
+            summary.append(f"Resting heart rate is within normal range ({resting_hr} bpm).")
+
+        if steps > 3000 and azm >= 30:
+            summary.append("Good daily activity achieved (3000+ steps and sufficient active minutes).")
+        else:
+            summary.append("Physical activity could be slightly improved for stress reduction.")
+
+        # Recommendations
+        recommendations.append("Practice deep breathing for 5–10 minutes today.")
+        recommendations.append("Do a 10–15 minute mindfulness meditation or progressive muscle relaxation.")
+        recommendations.append("Take a short nature walk if possible to refresh your mind.")
+
+        note = "This analysis is for informational purposes only. Please consult a doctor for any serious concerns."
 
         return jsonify({
-            "recommendations": response.text  # ✅ Properly extract text from Gemini
+            "summary": summary,
+            "warnings": warnings,
+            "recommendations": recommendations,
+            "note": note
         })
 
     except Exception as e:
-        print(f"Error in /recommendations: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 # --- MAIN ENTRY POINT ---
