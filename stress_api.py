@@ -42,6 +42,7 @@ def predict():
         return jsonify({'error': str(e)})
 
 # --- CHATBOT ENDPOINT ---
+# --- CHATBOT ENDPOINT ---
 @app.route('/chat', methods=['POST'])
 def chat():
     try:
@@ -55,13 +56,18 @@ def chat():
             "You are an intelligent chatbot integrated into a stress-level detection and "
             "recommendation app. Your role is to help users understand their stress levels, "
             "provide tips to manage stress, and answer questions about stress-related topics. "
-            "Please ensure your responses are concise, empathetic, and actionable."
+            "Please ensure your responses are concise, empathetic, and actionable. "
+            "Keep in mind that the app's purpose is to assist users in managing their stress."
         )
 
         model = genai.GenerativeModel(model_name="gemini-1.5-flash")
+
         response = model.generate_content(f"{template_message}\n\nUser: {user_message}")
 
-        return jsonify({"reply": response.text})
+        # ⚡ Correct way to extract text:
+        bot_reply = response.candidates[0].content.parts[0].text
+
+        return jsonify({"reply": bot_reply})
 
     except Exception as e:
         print(f"Error occurred: {str(e)}")
