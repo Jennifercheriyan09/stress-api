@@ -36,7 +36,39 @@ def predict():
 
         prediction = model.predict([features])[0]
         label_map = {0: "Low", 1: "Moderate", 2: "High"}
-        return jsonify({'stress_level': label_map[prediction]})
+        predicted_label = label_map[prediction]
+
+        # --- RULE-BASED OVERRIDE ---
+        heart_rate = data['heart_rate']
+        steps = data['steps']
+        hrv = data['hrv']
+        sleep_efficiency = data['sleep_efficiency']
+
+        override_reason = None
+
+        if heart_rate > 110:
+            if steps < 100:
+                predicted_label = "High"
+                override_reason = "High resting heart rate without activity."
+            else:
+                # High heart rate with good steps — assume exercise, no override
+                pass
+        elif hrv < 25:
+            predicted_label = "High"
+            override_reason = "Very low HRV indicating stress."
+        elif sleep_efficiency < 0.75:
+            if predicted_label == "Low":
+                predicted_label = "Moderate"
+                override_reason = "Poor sleep efficiency."
+        elif steps < 1000:
+            if predicted_label == "Low":
+                predicted_label = "Moderate"
+                override_reason = "Low daily activity."
+
+        return jsonify({
+            'stress_level': predicted_label,
+            'override_reason': override_reason
+        })
 
     except Exception as e:
         return jsonify({'error': str(e)})
