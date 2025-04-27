@@ -77,93 +77,85 @@ def chat():
 @app.route('/ai_predict', methods=['POST'])
 def ai_predict():
     try:
-        data = request.get_json()
+        data = request.json
 
-        features = {
-            'heart_rate': data.get('heart_rate'),
-            'steps': data.get('steps'),
-            'calories': data.get('calories'),
-            'azm': data.get('azm'),
-            'resting_hr': data.get('resting_hr'),
-            'hrv': data.get('hrv'),
-            'sleep_minutes': data.get('sleep_minutes'),
-            'sleep_efficiency': data.get('sleep_efficiency')
-        }
+        features = [
+            data['heart_rate'],
+            data['steps'],
+            data['calories'],
+            data['azm'],
+            data['resting_hr'],
+            data['hrv'],
+            data['sleep_minutes'],
+            data['sleep_efficiency']
+        ]
 
-        prompt = (
-            "Analyze the following fitness data and predict the stress level and probability."
-            " Respond strictly in JSON format only without extra explanation.\n\n"
-            f"Heart Rate: {features['heart_rate']} bpm\n"
-            f"Steps: {features['steps']}\n"
-            f"Calories Burned: {features['calories']} kcal\n"
-            f"Active Zone Minutes: {features['azm']}\n"
-            f"Resting Heart Rate: {features['resting_hr']} bpm\n"
-            f"Heart Rate Variability (HRV): {features['hrv']} ms\n"
-            f"Sleep Duration: {features['sleep_minutes']} minutes\n"
-            f"Sleep Efficiency: {features['sleep_efficiency']} %\n\n"
-            "⚡ Strict JSON Format:\n"
-            "{\n"
-            "  \"stress_level\": \"Low / Moderate / High\",\n"
-            "  \"stress_probability\": \"xx%\"\n"
-            "}"
-        )
+        # Get ML model prediction
+        prediction = model.predict([features])[0]
+        label_map = {0: "Low", 1: "Moderate", 2: "High"}
+        stress_level = label_map.get(prediction, "Unknown")
 
-        model = genai.GenerativeModel(model_name="gemini-1.5-flash")
-        response = model.generate_content(prompt)
+        # Ask Gemini to create a detailed analysis
+        prompt = f"""
+        Analyze the following health parameters:
+        Heart Rate: {data['heart_rate']} bpm,
+        Steps: {data['steps']},
+        Calories: {data['calories']} kcal,
+        Active Zone Minutes (AZM): {data['azm']},
+        Resting HR: {data['resting_hr']} bpm,
+        HRV: {data['hrv']} ms,
+        Sleep Minutes: {data['sleep_minutes']} min,
+        Sleep Efficiency: {data['sleep_efficiency']}
 
-        structured_data = json.loads(response.text)
+        Based on this, give a probability or confidence score for the stress level ({stress_level})
+        and explain why you rated it so. Also, suggest a small action the user can take.
+        """
 
-        return jsonify(structured_data)
+        model_ai = genai.GenerativeModel(model_name="gemini-1.5-flash")
+        response = model_ai.generate_content(prompt)
+
+        return jsonify({
+            "stress_level": stress_level,
+            "detailed_insight": response.text  # ✅ Now safely extract text
+        })
 
     except Exception as e:
-        print(f"Error occurred: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        print(f"Error in /ai_predict: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 # --- AI-BASED RECOMMENDATIONS ENDPOINT ---
 @app.route('/recommendations', methods=['POST'])
 def recommendations():
     try:
-        data = request.get_json()
+        data = request.json
 
-        features = {
-            'heart_rate': data.get('heart_rate'),
-            'steps': data.get('steps'),
-            'calories': data.get('calories'),
-            'azm': data.get('azm'),
-            'resting_hr': data.get('resting_hr'),
-            'hrv': data.get('hrv'),
-            'sleep_minutes': data.get('sleep_minutes'),
-            'sleep_efficiency': data.get('sleep_efficiency')
-        }
+        # Create an intelligent recommendation prompt
+        prompt = f"""
+        Given this data:
+        Heart Rate: {data['heart_rate']} bpm,
+        Steps: {data['steps']},
+        Calories: {data['calories']} kcal,
+        Active Zone Minutes: {data['azm']},
+        Resting Heart Rate: {data['resting_hr']} bpm,
+        HRV: {data['hrv']} ms,
+        Sleep Minutes: {data['sleep_minutes']},
+        Sleep Efficiency: {data['sleep_efficiency']},
 
-        prompt = (
-            "Analyze the following fitness data and explain why the user's stress level might be low, moderate, or high."
-            " Also suggest a short advice to improve it. Respond strictly in JSON format.\n\n"
-            f"Heart Rate: {features['heart_rate']} bpm\n"
-            f"Steps: {features['steps']}\n"
-            f"Calories Burned: {features['calories']} kcal\n"
-            f"Active Zone Minutes: {features['azm']}\n"
-            f"Resting Heart Rate: {features['resting_hr']} bpm\n"
-            f"Heart Rate Variability (HRV): {features['hrv']} ms\n"
-            f"Sleep Duration: {features['sleep_minutes']} minutes\n"
-            f"Sleep Efficiency: {features['sleep_efficiency']} %\n\n"
-            "⚡ Strict JSON format only:\n"
-            "{\n"
-            "  \"reason\": \"Why stress is low/moderate/high based on the data\",\n"
-            "  \"advice\": \"Simple advice to improve stress or maintain wellness\"\n"
-            "}"
-        )
+        Analyze if the person shows signs of stress. 
+        Identify one good thing in the data and one warning sign.
+        Then recommend 2-3 specific actions they can do today to reduce stress.
+        """
 
-        model = genai.GenerativeModel(model_name="gemini-1.5-flash")
-        response = model.generate_content(prompt)
+        model_ai = genai.GenerativeModel(model_name="gemini-1.5-flash")
+        response = model_ai.generate_content(prompt)
 
-        structured_data = json.loads(response.text)
-
-        return jsonify(structured_data)
+        return jsonify({
+            "recommendations": response.text  # ✅ Properly extract text from Gemini
+        })
 
     except Exception as e:
-        print(f"Error occurred: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        print(f"Error in /recommendations: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 # --- MAIN ENTRY POINT ---
 if __name__ == '__main__':
